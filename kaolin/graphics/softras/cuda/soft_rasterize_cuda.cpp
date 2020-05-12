@@ -90,8 +90,8 @@ std::vector<at::Tensor> backward_soft_rasterize_cuda(
 
 // C++ interface
 
-#define CHECK_CUDA(x) AT_CHECK(x.type().is_cuda(), #x " must be a CUDA tensor")
-#define CHECK_CONTIGUOUS(x) AT_CHECK(x.is_contiguous(), #x " must be contiguous")
+#define CHECK_CUDA(x) TORCH_CHECK(x.type().is_cuda(), #x " must be a CUDA tensor")
+#define CHECK_CONTIGUOUS(x) TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
 #define CHECK_INPUT(x) CHECK_CUDA(x); CHECK_CONTIGUOUS(x)
 
 
@@ -166,12 +166,12 @@ std::vector<at::Tensor> backward_soft_rasterize(
                                         grad_faces, grad_textures, grad_soft_colors, 
                                         image_size, near, far, eps, 
                                         sigma_val, func_id_dist, dist_eps,
-                                        gamma_val, func_id_rgb, func_id_alpha, 
+                                        gamma_val, func_id_rgb, func_id_alpha,
                                         texture_sample_type, double_side);
 }
 
 
-PYBIND11_MODULE(soft_rasterize, m) {
-    m.def("forward_soft_rasterize", &forward_soft_rasterize, "FORWARD_SOFT_RASTERIZE (CUDA)");
-    m.def("backward_soft_rasterize", &backward_soft_rasterize, "BACKWARD_SOFT_RASTERIZE (CUDA)");
+PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
+    m.def("forward", &forward_soft_rasterize, "SOFT_RASTERIZE_FORWARD (CUDA)");
+    m.def("backward", &backward_soft_rasterize, "SOFT_RASTERIZE_BACKWARD (CUDA)");
 }

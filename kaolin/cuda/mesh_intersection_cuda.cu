@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
 
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <torch/extension.h>
 #include <iostream>
 
 using namespace std;
@@ -104,8 +103,6 @@ void MeshIntersectionKernel(
 			
 			float3 q1 = make_float3(points[ j *3+0], points[ j *3+1], points[ j *3+2]);
 			float3 q2 = make_float3(points[ j *3+0] + 10., points[ j *3+1], points[ j *3+2]);
-			int intersections=0;
-			int end_ka=end_k-(end_k&3);
 			for (int k=0;k<end_k;k++){
 				{		
 

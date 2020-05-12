@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -100,6 +100,7 @@ def _assert_dim_lt(inp, tgt):
         raise ValueError('Expected input to contain less than {0} dims. '
                          'Got {1} instead.'.format(tgt, inp.dim()))
 
+
 def _assert_dim_ge(inp, tgt):
     """Asserts that the number of dims in inp is greater than or equal to the
     value sepecified in tgt. 
@@ -151,12 +152,12 @@ def _assert_shape_eq(inp, tgt_shape, dim=None):
         if inp.shape != tgt_shape:
             raise ValueError('Size mismatch. Input and target have different '
                              'shapes: {0} vs {1}.'.format(inp.shape,
-                                tgt_shape))
+                                                          tgt_shape))
     else:
         if inp.shape[dim] != tgt_shape[dim]:
             raise ValueError('Size mismatch. Input and target have different '
                              'shapes at dimension {2}: {0} vs {1}.'.format(
-                                inp.shape[dim], tgt_shape[dim], dim))
+                                 inp.shape[dim], tgt_shape[dim], dim))
 
 
 def _assert_gt(inp, val):
@@ -173,13 +174,13 @@ def _get_hash(x):
     if isinstance(x, dict):
         x = tuple(sorted(pair for pair in x.items()))
 
-    return hashlib.md5(bytes(str(x), 'utf-8')).hexdigest()
+    return hashlib.md5(bytes(repr(x), 'utf-8')).hexdigest()
 
 
 class Cache(object):
-    """Caches the results of the called function to disk.
+    """Caches the results of a function to disk.
     If already cached, data is returned from disk, otherwise,
-    the function called is executed.
+    the function is executed. Output tensors are always on CPU device.
 
         Args:
             transforms (Iterable): List of transforms to compose.
@@ -187,40 +188,37 @@ class Cache(object):
                              to 'cache'.
     """
 
-    def __init__(self, func: Callable, cache_dir: str = 'cache', cache_key: str = ''):
+    def __init__(self, func: Callable, cache_dir: [str, Path], cache_key: str):
         self.func = func
-        self.cache_dir = Path(cache_dir) / cache_key
+        self.cache_dir = Path(cache_dir) / str(cache_key)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.cached_ids = [p.stem for p in self.cache_dir.glob('*')]
 
-    def __call__(self, object_id: str, **kwargs):
+    def __call__(self, unique_id: str, *args, **kwargs):
         """Execute self.func if not cached, otherwise, read data from disk.
 
             Args:
-                object_id (str): The object id with which to name the cache file.
+                unique_id (str): The unique id with which to name the cached file.
                 **kwargs: The arguments to be passed to self.func.
 
             Returns:
                 dict of {str: torch.Tensor}: Dictionary of tensors.
         """
 
-        fpath = self.cache_dir / '{0}.npz'.format(object_id)
+        fpath = self.cache_dir / f'{unique_id}.p'
 
         if not fpath.exists():
-            output = self.func(**kwargs)
+            output = self.func(*args, **kwargs)
             self._write(output, fpath)
-            self.cached_ids.append(object_id)
+            self.cached_ids.append(unique_id)
         else:
             output = self._read(fpath)
 
-        return output
+        # Read file to move tensors to CPU.
+        return self._read(fpath)
 
     def _write(self, x, fpath):
-        """Write dictionary of numpy arrays to disk.
-        """
-        np_out = {k: t.data.cpu().numpy() for k, t in x.items()}
-        np.savez(fpath, **np_out)
+        torch.save(x, fpath)
 
     def _read(self, fpath):
-        np_in = np.load(fpath)
-        return {k: torch.from_numpy(arr) for k, arr in np_in.items()}
+        return torch.load(fpath, map_location='cpu')

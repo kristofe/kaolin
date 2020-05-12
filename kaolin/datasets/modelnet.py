@@ -12,99 +12,80 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Iterable, Optional
+
 import torch
 import os
-import sys
-import urllib.request
-import zipfile
 from glob import glob
-import scipy.io as sio
+
+from kaolin.rep.TriangleMesh import TriangleMesh
+from .base import KaolinDataset
 
 
-def download_modelnet_category(modelnet_location):
-    r"""Downloads a modelnet category to a specified direcotry
-
-    You may complete this function to automate downloading from a
-    central source.
-    """
-    NotImplemented
-
-
-class ModelNet(object):
-    r"""
-    Dataloader for downloading and reading from ModelNet
-
+class ModelNet(KaolinDataset):
+    r"""Dataset class for the ModelNet dataset.
 
     Args:
-        root (str): location the dataset should be downloaded to /loaded from
-        train (bool): if True loads training set, else loads test
-        download (bool): downloads the dataset if not found in root
-        categories (str): list of object classes to be loaded
-        single_view (bool): if true only one roation is used, if not all 12 views are loaded
-
-    Returns:
-        .. code-block::
-        
-        dict: {
-            'attributes': {'name': str, 'class': str},
-            'data': {'voxels': torch.Tensor}
-        }
-
+        root (str): Path to the base directory of the ModelNet dataset.
+        split (str, optional): Split to load ('train' vs 'test',
+            default: 'train').
+        categories (iterable, optional): List of categories to load
+            (default: ['chair']).
 
     Examples:
-        >>> dataset = ModelNet(root='../data/')
+        >>> dataset = ModelNet(root='data/ModelNet')
         >>> train_loader = DataLoader(dataset, batch_size=10, shuffle=True, num_workers=8)
-        >>> obj = next(iter(train_loader))
-        >>> obj['data']['data']
-        torch.Size([10, 30, 30, 30])
+        >>> obj, label = next(iter(train_loader))
     """
 
-    def __init__(self, root: str = '../data/', train: bool = True, test: bool = True,
-                 download: bool = True, categories: list = ['chair'], single_view: bool = True):
-        if not os.path.exists(root + '/ModelNet/'):
-            assert download, "ModelNet is not found, and download is set to False"
-            assert (train or test), 'either train or test must be set to True'
+    def initialize(self, root: str,
+                   split: Optional[str] = 'train',
+                   categories: Optional[Iterable] = None):
+        """Initialize the dataset.
 
-            download_modelnet_category(root)
+        Args:
+            root (str): Path to the base directory of the ModelNet dataset.
+            split (str, optional): Split to load ('train' vs 'test',
+                default: 'train').
+            categories (iterable, optional): List of categories to load
+                (default: ['chair']).
+        """
 
-        if not single_view:
-            side = ''
-        else:
-            side = '_1'
+        assert split.lower() in ['train', 'test']
 
-        all_classes = [os.path.basename(os.path.dirname(c))
-                       for c in glob(root + '/ModelNet/volumetric_data/*/')]
+        if categories is None:
+            categories = ['chair']
+
+        self.root = root
+        self.categories = categories
         self.names = []
-        for category in categories:
-            assert category in all_classes, 'object class {0} not in list of availible classes: {1}'.format(
-                category, all_classes)
-            if train:
-                self.names += glob(
-                    root + '/ModelNet/volumetric_data/{0}/*/{1}/*{2}.mat'.format(category, 'train', side))
-            if test:
-                self.names += glob(
-                    root + '/ModelNet/volumetric_data/{0}/*/{1}/*{2}.mat'.format(category, 'test', side))
+        self.filepaths = []
+        self.cat_idxs = []
+
+        if not os.path.exists(root):
+            raise ValueError('ModelNet was not found at "{0}".'.format(root))
+
+        available_categories = [p for p in os.listdir(root) if os.path.isdir(os.path.join(root, p))]
+
+        for cat_idx, category in enumerate(categories):
+            assert category in available_categories, 'object class {0} not in list of available classes: {1}'.format(
+                category, available_categories)
+
+            cat_paths = glob(os.path.join(root, category, split.lower(), '*.off'))
+
+            self.cat_idxs += [cat_idx] * len(cat_paths)
+            self.names += [os.path.splitext(os.path.basename(cp))[0] for cp in cat_paths]
+            self.filepaths += cat_paths
 
     def __len__(self):
         return len(self.names)
 
-    def __getitem__(self, item):
-        object_path = self.names[item]
+    def _get_data(self, index):
+        data = TriangleMesh.from_off(self.filepaths[index])
+        return data
 
-        # convert the path to the linux like path in o
-        if sys.platform.startswith('win'):
-            object_path = object_path.replace('\\', '/')
-
-        
-        object_class = object_path.split('/')[-4]
-        object_name = object_path.split('/')[-1]
-        object_data = sio.loadmat(object_path)['instance']
-        # object_shape = object_data.shape
-
-        data = dict()
-        attributes = dict()
-        attributes['name'] = object_name
-        attributes['class'] = object_class
-        data['voxels'] = torch.FloatTensor(object_data.astype(float))
-
-        return {'attributes': attributes, 'data': data}
+    def _get_attributes(self, index):
+        category = torch.tensor(self.cat_idxs[index], dtype=torch.long)
+        return {
+            'category': category,
+        }

@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,28 +12,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
-
-import torch
-import sys
 import os
+import pytest
 import shutil
+import torch
 
 import kaolin as kal
-from torch.utils.data import DataLoader
+import kaolin.transforms.transforms as tfs
 
 
-# Tests below can only be run is a ShapeNet dataset is available
-
-# def test_ModelNet(device = 'cpu'): 
-	
-# 	models = kal.dataloader.ModelNet(root = 'datasets', categories = ['chair'], train = True)
-	
-# 	assert len(models) == 889
-# 	for obj in models: 
-# 		assert obj['class'] == 'chair'
-# 		assert set(obj['data'].shape) == set([30,30,30]) 
-# 	shutil.rmtree('datasets/')
+MODELNET_ROOT = '/data/ModelNet10/'
+CACHE_DIR = 'tests/datasets/cache'
 
 
+# Tests below can only be run if a ModelNet dataset is available
+REASON = 'ModelNet not found at default location: {}'.format(MODELNET_ROOT)
 
+
+@pytest.mark.parametrize('device', ['cpu', 'cuda'])
+@pytest.mark.skipif(not os.path.exists(MODELNET_ROOT), reason=REASON)
+def test_ModelNet(device):
+    models = kal.datasets.ModelNet(root=MODELNET_ROOT, categories=['bathtub'], split='test')
+
+    assert len(models) == 50
+    for data, attributes in models:
+        assert attributes['category'].item() == 0
+        assert isinstance(data, kal.rep.Mesh)

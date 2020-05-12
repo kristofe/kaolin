@@ -180,6 +180,8 @@ docs/_build
 # Test generated files (dataloader tests create temporary dirs)
 tests/datasets_eval/
 
+tests/visualize/results/
+
 # Default data directory
 data/
 
@@ -191,3 +193,11 @@ public/
 
 # vscode
 **/.vscode/**
+
+# Results directory for examples
+examples/renderers/DIB-R/results/
+examples/renderers/NMR/results/
+
+# example outputs
+cache/
+log/
